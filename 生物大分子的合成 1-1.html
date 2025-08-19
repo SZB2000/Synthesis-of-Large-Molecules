@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>四合一：蛋白质 + DNA + RNA + 多糖（彩色交互·v3，水解 + 3'/5' 点位修正）</title>
+<style>
+  :root{ --bg:#f8fafc; --ink:#0f172a; }
+  *{box-sizing:border-box}
+  body{font-family:system-ui,Segoe UI,Helvetica,Arial; margin:18px; background:var(--bg); color:var(--ink);}  
+  h1{font-size:20px; margin:0 0 10px;}
+  .tabs{display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap}
+  .tab-btn{padding:8px 14px; border-radius:10px; border:1px solid #cbd5e1; background:#f0f9ff; cursor:pointer; font-weight:700; color:#075985;}
+  .tab-btn.active{background:#e6f6ff; border-color:#38bdf8; color:#0369a1}
+  .tab{display:none}
+  .tab.active{display:block}
+  .panel{position:relative; width:100%; height:720px; background:#fefce8; border:1px solid #e6edf3; border-radius:12px; overflow:hidden;}
+
+  /* ====== 通用“水”样式（蓝色圆形） ====== */
+  .water{
+    position:absolute; width:40px; height:40px; border-radius:50%;
+    background:radial-gradient(45% 45% at 60% 35%, #c7e1ff 0%, #60a5fa 60%, #2563eb 100%);
+    border:2px solid #1d4ed8; color:#e0f2fe; font-weight:900; font-size:11px;
+    display:flex; align-items:center; justify-content:center;
+    user-select:none; cursor:pointer; box-shadow:0 4px 10px rgba(37,99,235,.25);
+  }
+
+  /* ==== 动画人物 (斯蒂夫) ==== */
+  #steve {
+    /* 固定定位的动画人物。默认在底部 20px，上限通过脚本设置左位置 */
+    position: fixed;
+    bottom: 20px;
+    /* 不设置 right，以便脚本使用 left 属性进行位置控制 */
+    width: 64px;
+    height: 64px;
+    pointer-events: none;
+    z-index: 1000;
+    transition: transform .1s;
+  }
+  #steve.mirrored {
+    transform: scaleX(-1);
+  }
+  .controls{ position:absolute; right:10px; top:10px; display:flex; gap:8px; z-index:5; }
+  .small-btn{padding:6px 10px; border-radius:8px; border:1px solid #0ea5e9; background:#cffafe; color:#075985; cursor:pointer; font-size:12px;}
+
+  /* ————— AA 区 ————— */
+  #tab-aa .aa-card{ position:absolute; width:140px; height:86px; cursor:grab; user-select:none; touch-action:none; transform-origin:center; transition:transform .12s; }
+  #tab-aa .aa-card.dragging{transform:scale(1.04); z-index:2000; cursor:grabbing;}
+  #tab-aa .aa-core{ position:absolute; left:6px; top:10px; right:6px; bottom:10px; border-radius:8px; background:#dbeafe; border:2px solid #1d4ed8; display:flex; align-items:center; justify-content:center; font-weight:700; color:#0b2447; }
+  #tab-aa .aa-grp{ position:absolute; width:38px; height:24px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; }
+  #tab-aa .amino{ left:-18px; top:calc(50% - 12px); background:#bfdbfe; border:1px solid #1e40af; color:#0b1f44;}
+  #tab-aa .carbox{ right:-18px; top:calc(50% - 12px); background:#fecaca; border:1px solid #b91c1c; color:#7f1d1d;}
+  #tab-aa .side-h{ position:absolute; width:30px; height:20px; left: 55px; top:-8px; border-radius:6px; background:#e2e8f0; border:1px solid #0f172a; display:flex;align-items:center;justify-content:center; font-size:11px; color:#0f172a;}
+  #tab-aa .side-r{ position:absolute; width:84px; height:40px; left: 30px; bottom:-20px; border-radius:8px; background:#d1fae5; border:1px solid #047857; font-size:11px; display:flex;align-items:center;justify-content:center; font-weight:700; color:#065f46; }
+  #tab-aa svg{ position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; }
+
+  /* ————— DNA & RNA 通用样式 ————— */
+  .with-palette .palette{position:absolute; left:0; right:0; top:0; min-height:168px; background:#e0f2fe; border-bottom:1px dashed #38bdf8; padding:10px 14px;}
+  .with-palette .pal-grid{display:grid; grid-template-columns: repeat(8, 190px); gap:12px; overflow-x:auto; padding-bottom:6px;}
+  .with-palette .legend{margin-top:6px; font-size:12px; color:#0c4a6e; display:flex; gap:16px; align-items:center;}
+  .nuc{ position:absolute; width:190px; height:132px; cursor:grab; user-select:none; touch-action:none; }
+  .nuc.dragging{ transform:scale(1.04); z-index:2000; cursor:grabbing; }
+  .sugar{ position:absolute; width:72px; height:72px; top:34px; left:calc(50% - 36px); border:2px solid #b45309; border-radius:8px; clip-path: polygon(50% 0%, 100% 36%, 82% 100%, 18% 100%, 0 36%); }
+  .sugar.dna{ background:#fde68a; }      /* 脱氧核糖 */
+  .sugar.rna{ background:#d9f99d; }      /* 核糖（颜色区分） */
+  .phos{ position:absolute; width:46px; height:46px; top:14px; border-radius:50%; background:#fed7aa; border:2px solid #f97316; color:#7c2d12; display:flex; align-items:center; justify-content:center; font-weight:900; }
+  .orient-R .phos{ left:10px; }  .orient-L .phos{ right:10px; }
+  .port{ position:absolute; width:16px; height:16px; border-radius:50%; background:#e0f2fe; border:2px solid #0284c7; }
+  .port::after{content:''; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:6px; height:6px; border-radius:50%; background:#0284c7; opacity:.7}
+  .lbl{ position:absolute; font-size:10px; color:#0f172a; background:#fde68a; border:1px solid #b45309; border-radius:8px; padding:2px 6px;}
+  .base{ position:absolute; top:64px; width:68px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-weight:900; color:#fff; }
+  .orient-R .base{ left:auto; right:10px; } .orient-L .base{ left:10px; right:auto; }
+  .A{ background:#06b6d4; } .T{ background:#10b981; } .U{ background:#22c55e; } .C{ background:#ef4444; } .G{ background:#eab308; color:#111827;}
+  /* 接口：凸 = 实心；凹 = 淡蓝空心，不用纯白 */
+  .base[data-shape='circle'][data-side='right'][data-sex='peg']::after,
+  .base[data-shape='circle'][data-side='left'][data-sex='peg']::before{content:''; position:absolute; top:50%; transform:translateY(-50%); width:16px; height:16px; border-radius:50%; background:#111827; opacity:.9;}
+  .base[data-shape='circle'][data-side='right'][data-sex='peg']::after{ right:-10px; }
+  .base[data-shape='circle'][data-side='left'][data-sex='peg']::before{ left:-10px; }
+  .base[data-shape='circle'][data-side='right'][data-sex='socket']::after,
+  .base[data-shape='circle'][data-side='left'][data-sex='socket']::before{content:''; position:absolute; top:50%; transform:translateY(-50%); width:16px; height:16px; border-radius:50%; background:#e0f2fe; box-shadow:0 0 0 2px #111827 inset;}
+  .base[data-shape='circle'][data-side='right'][data-sex='socket']::after{ right:-10px; }
+  .base[data-shape='circle'][data-side='left'][data-sex='socket']::before{ left:-10px; }
+  .base[data-shape='tri'][data-side='right'][data-sex='peg']::after{ content:''; position:absolute; right:-12px; top:50%; transform:translateY(-50%); width:0; height:0; border-left:18px solid #111827; border-top:9px solid transparent; border-bottom:9px solid transparent; }
+  .base[data-shape='tri'][data-side='left'][data-sex='peg']::before{ content:''; position:absolute; left:-12px;  top:50%; transform:translateY(-50%); width:0; height:0; border-right:18px solid #111827; border-top:9px solid transparent; border-bottom:9px solid transparent; }
+  .base[data-shape='tri'][data-side='right'][data-sex='socket']::after{ content:''; position:absolute; right:-12px; top:50%; transform:translateY(-50%); width:18px; height:18px; background:#e0f2fe; clip-path: polygon(0 0, 100% 50%, 0 100%); box-shadow:0 0 0 2px #111827 inset; }
+  .base[data-shape='tri'][data-side='left'][data-sex='socket']::before{ content:''; position:absolute; left:-12px;  top:50%; transform:translateY(-50%); width:18px; height:18px; background:#e0f2fe; clip-path: polygon(100% 0, 0 50%, 100% 100%); box-shadow:0 0 0 2px #111827 inset; }
+  .with-palette svg{ position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; }
+  .intra{ position:absolute; left:0; top:0; width:190px; height:132px; pointer-events:none; overflow:visible; }
+
+  /* ————— 多糖 区 ————— */
+  #tab-poly .palette{position:absolute; left:0; right:0; top:0; min-height:168px; background:#e0f2fe; border-bottom:1px dashed #38bdf8; padding:10px 14px;}
+  #tab-poly .pal-grid{display:grid; grid-template-columns: repeat(10, 160px); gap:12px; overflow-x:auto; padding-bottom:6px;}
+  #tab-poly .legend{margin-top:6px; font-size:12px; color:#0c4a6e; display:flex; gap:16px; align-items:center;}
+  #tab-poly .mono{ position:absolute; width:160px; height:130px; cursor:grab; user-select:none; touch-action:none; }
+  #tab-poly .mono.dragging{ transform:scale(1.04); z-index:2000; cursor:grabbing; }
+  #tab-poly .hex{ position:absolute; width:86px; height:76px; top:28px; left:calc(50% - 43px); background:#e2f0ff; border:2px solid #2563eb; clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); border-radius:8px; }
+  #tab-poly .name{ position:absolute; left:8px; right:8px; bottom:6px; text-align:center; font-weight:900; color:#0f172a; background:#e2f2ffcc; border:1px solid #60a5fa; border-radius:10px; padding:2px 6px; }
+  #tab-poly .mono[data-kind="葡萄糖"] .hex{ background:#fde68a; border-color:#b45309; }
+  #tab-poly .mono[data-kind="果糖"]   .hex{ background:#bbf7d0; border-color:#16a34a; }
+  #tab-poly .mono[data-kind="半乳糖"] .hex{ background:#bfdbfe; border-color:#1d4ed8; }
+  #tab-poly .mono[data-kind="甘露糖"] .hex{ background:#fecaca; border-color:#b91c1c; }
+  #tab-poly .mono[data-kind="岩藻糖"] .hex{ background:#fef08a; border-color:#ca8a04; }
+  #tab-poly .mono[data-kind="鼠李糖"] .hex{ background:#fee2e2; border-color:#ef4444; }
+  #tab-poly .mono[data-kind="N-乙酰葡萄糖胺"] .hex{ background:#e9d5ff; border-color:#7c3aed; }
+  #tab-poly .mono[data-kind="N-乙酰半乳糖胺"] .hex{ background:#ddd6fe; border-color:#6d28d9; }
+  #tab-poly .port{ position:absolute; width:16px; height:16px; border-radius:50%; background:#e0f2fe; border:2px solid #0284c7; }
+  #tab-poly .p-c1{ right:16px;  top:52px; }  #tab-poly .p-c4{ left:16px; top:52px; }  #tab-poly .p-c6{ left:calc(50% - 8px); top:10px; }
+  #tab-poly .label{ position:absolute; font-size:10px; color:#0f172a; background:#fde68a; border:1px solid #b45309; border-radius:8px; padding:1px 6px;}  #tab-poly .lbl-c1{ right:12px; top:32px; } #tab-poly .lbl-c4{ left:12px; top:32px; } #tab-poly .lbl-c6{ left:calc(50% - 10px); top:-2px; }
+  #tab-poly svg{ position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; }
+</style>
+</head>
+<body>
+  <h1>四合一：蛋白质 + DNA + RNA + 多糖（彩色交互·v3）</h1>
+  <div class="tabs">
+    <button class="tab-btn active" data-for="tab-aa">蛋白质合成</button>
+    <button class="tab-btn" data-for="tab-dna">DNA 合成</button>
+    <button class="tab-btn" data-for="tab-rna">RNA 合成</button>
+    <button class="tab-btn" data-for="tab-poly">多糖合成</button>
+  </div>
+
+  <!-- AA -->
+  <section id="tab-aa" class="tab active">
+    <div class="panel">
+      <div class="controls">
+        <button class="small-btn" id="aa-water">放一滴水</button>
+        <button class="small-btn" id="aa-reset">重置画布</button>
+      </div>
+      <svg id="aa-svg"></svg>
+    </div>
+  </section>
+
+  <!-- DNA -->
+  <section id="tab-dna" class="tab">
+    <div class="panel with-palette" id="dna-board">
+      <div class="palette">
+        <div class="pal-grid" id="dna-pal"></div>
+        <div class="legend">
+          <button class="small-btn" id="dna-water">放一滴水</button>
+          <button class="small-btn" id="dna-reset">重置画布</button>
+        </div>
+      </div>
+      <svg id="dna-svg"></svg>
+    </div>
+  </section>
+
+  <!-- RNA -->
+  <section id="tab-rna" class="tab">
+    <div class="panel with-palette" id="rna-board">
+      <div class="palette">
+        <div class="pal-grid" id="rna-pal"></div>
+        <div class="legend">
+          <button class="small-btn" id="rna-water">放一滴水</button>
+          <button class="small-btn" id="rna-reset">重置画布</button>
+        </div>
+      </div>
+      <svg id="rna-svg"></svg>
+    </div>
+  </section>
+
+  <!-- Poly -->
+  <section id="tab-poly" class="tab">
+    <div class="panel" id="poly-board">
+      <div class="palette">
+        <div class="pal-grid" id="poly-pal"></div>
+        <div class="legend">
+          <button class="small-btn" id="poly-water">放一滴水</button>
+          <button class="small-btn" id="poly-reset">重置画布</button>
+        </div>
+      </div>
+      <svg id="poly-svg"></svg>
+    </div>
+  </section>
+
+<script>
+// ========== Tab 切换 ==========
+(function(){
+  const btns=[...document.querySelectorAll('.tab-btn')];
+  btns.forEach(b=>b.addEventListener('click',()=>{
+    btns.forEach(x=>x.classList.remove('active')); b.classList.add('active');
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    document.getElementById(b.dataset.for).classList.add('active');
+  }));
+})();
+
+// 统一画线
+function mkLine(svg, x1,y1,x2,y2,stroke,w){
+  const L=document.createElementNS('http://www.w3.org/2000/svg','line');
+  L.setAttribute('x1',x1);L.setAttribute('y1',y1);L.setAttribute('x2',x2);L.setAttribute('y2',y2);
+  L.setAttribute('stroke',stroke);L.setAttribute('stroke-width',w);L.setAttribute('stroke-linecap','round');
+  svg.appendChild(L); return L;
+}
+function mkRect(svg,x,y,w,h,r,fill){const R=document.createElementNS('http://www.w3.org/2000/svg','rect');R.setAttribute('x',x);R.setAttribute('y',y);R.setAttribute('width',w);R.setAttribute('height',h);R.setAttribute('rx',r);R.setAttribute('fill',fill);svg.appendChild(R);return R;}
+function mkText(svg,x,y,str,fill='#fff'){const T=document.createElementNS('http://www.w3.org/2000/svg','text');T.setAttribute('x',x);T.setAttribute('y',y);T.setAttribute('text-anchor','middle');T.setAttribute('font-size','12');T.setAttribute('font-weight','700');T.setAttribute('fill',fill);T.textContent=str;svg.appendChild(T);return T;}
+function spawnWater(panel, x=30, y=200){ const el=document.createElement('div'); el.className='water'; el.textContent='H₂O'; el.style.left=x+'px'; el.style.top=y+'px'; panel.appendChild(el);
+  let drag=null; el.addEventListener('pointerdown',e=>{ e.stopPropagation(); el.setPointerCapture(e.pointerId); const r=panel.getBoundingClientRect(); drag={ox:e.clientX-r.left-parseFloat(el.style.left),oy:e.clientY-r.top-parseFloat(el.style.top)}; });
+  el.addEventListener('pointermove',e=>{ if(!drag)return; const r=panel.getBoundingClientRect(); el.style.left=(e.clientX-r.left-drag.ox)+'px'; el.style.top=(e.clientY-r.top-drag.oy)+'px'; });
+  el.addEventListener('pointerup',()=>{ drag=null; });
+  el.addEventListener('dblclick',()=> el.remove());
+  return el;
+}
+
+// ========== AA 模块（加“放水”按钮；保留水解） ==========
+(function(){
+  const panel = document.querySelector('#tab-aa .panel');
+  const svg = document.getElementById('aa-svg');
+  const CARD_W = 140, CARD_H = 86;
+  const aminoList=[], bonds=[];
+
+  const NAMES = ["亮氨酸","异亮氨酸","缬氨酸","蛋氨酸","苯丙氨酸","色氨酸","苏氨酸","赖氨酸","组氨酸","脯氨酸","天冬氨酸"];
+  function randPos(i){const m=24,c=4;return{x:m+(i%c)*(CARD_W+60),y:m+Math.floor(i/c)*(CARD_H+40)}}
+  function addAA(name,i){const id='aa'+i,p=randPos(i);const el=document.createElement('div');el.className='aa-card';el.style.left=p.x+'px';el.style.top=p.y+'px';el.dataset.id=id;el.innerHTML=`<div class="aa-core"><span style="font-weight:900">C</span></div><div class="aa-grp amino">NH₂</div><div class="aa-grp carbox">COOH</div><div class="side-h">H</div><div class="side-r">${name}</div>`;panel.appendChild(el);aminoList.push({id,el,pos:{...p},leftFree:true,rightFree:true});}
+  NAMES.forEach(addAA);
+
+  function refresh(){bonds.forEach(b=>{const L=aminoList.find(a=>a.id===b.leftId),R=aminoList.find(a=>a.id===b.rightId);if(!L||!R)return;const x1=L.pos.x+CARD_W,y1=L.pos.y+CARD_H/2,x2=R.pos.x,y2=R.pos.y+CARD_H/2;b.line.setAttribute('x1',x1);b.line.setAttribute('y1',y1);b.line.setAttribute('x2',x2);b.line.setAttribute('y2',y2);const mx=(x1+x2)/2,my=(y1+y2)/2;b.rect.setAttribute('x',mx-42);b.rect.setAttribute('y',my-16);b.txt.setAttribute('x',mx);b.txt.setAttribute('y',my+6);});}
+
+  function makeWaterNear(mx,my,onDrop){const el=spawnWater(panel,mx-20,my-40);let up=false;el.addEventListener('pointerup',e=>{ if(up) return; up=true; const r=panel.getBoundingClientRect(); onDrop(e.clientX-r.left, e.clientY-r.top); setTimeout(()=>up=false,0); }); return el;}
+
+  function bond(l,r){const L=aminoList.find(a=>a.id===l),R=aminoList.find(a=>a.id===r);if(!L||!R||!L.rightFree||!R.leftFree)return;L.rightFree=false;R.leftFree=false;const x1=L.pos.x+CARD_W,y1=L.pos.y+CARD_H/2,x2=R.pos.x,y2=R.pos.y+CARD_H/2;const line=mkLine(svg,x1,y1,x2,y2,'#16a34a',6),rect=mkRect(svg,(x1+x2)/2-42,(y1+y2)/2-16,84,28,6,'#f59e0b'),txt=mkText(svg,(x1+x2)/2,(y1+y2)/2+6,'-NH-CO-');bonds.push({leftId:l,rightId:r,line,rect,txt});makeWaterNear((x1+x2)/2,(y1+y2)/2,(mx,my)=>{const d=Math.hypot(mx-((x1+x2)/2),my-((y1+y2)/2));if(d<40){[line,rect,txt].forEach(e=>e.remove());L.rightFree=true;R.leftFree=true;bonds.splice(bonds.findIndex(b=>b.leftId===l&&b.rightId===r),1);}});}
+
+  let drag=null;panel.addEventListener('pointerdown',ev=>{const card=ev.target.closest('.aa-card');if(!card)return;card.setPointerCapture(ev.pointerId);const id=card.dataset.id;const it=aminoList.find(a=>a.id===id);const r=panel.getBoundingClientRect();drag={id,ox:ev.clientX-r.left-it.pos.x,oy:ev.clientY-r.top-it.pos.y};card.classList.add('dragging');});
+  panel.addEventListener('pointermove',ev=>{if(!drag)return;const r=panel.getBoundingClientRect();const it=aminoList.find(a=>a.id===drag.id);it.pos.x=ev.clientX-r.left-drag.ox;it.pos.y=ev.clientY-r.top-drag.oy;it.el.style.left=it.pos.x+'px';it.el.style.top=it.pos.y+'px';refresh();});
+  panel.addEventListener('pointerup',()=>{if(!drag)return;const A=aminoList.find(a=>a.id===drag.id);const el=document.querySelector(`#tab-aa .aa-card[data-id="${drag.id}"]`);if(el)el.classList.remove('dragging');for(const B of aminoList){if(B.id===A.id)continue;const dx=Math.abs((A.pos.x+CARD_W)-B.pos.x);const dy=Math.abs((A.pos.y+CARD_H/2)-(B.pos.y+CARD_H/2));if(dx<36&&dy<34){bond(A.id,B.id);break;}const dx2=Math.abs(A.pos.x-(B.pos.x+CARD_W));if(dx2<36&&dy<34){bond(B.id,A.id);break;}}drag=null;});
+
+  // 控件
+  document.getElementById('aa-water').addEventListener('click',()=>spawnWater(panel,40,220));
+  document.getElementById('aa-reset').addEventListener('click',()=>{while(svg.firstChild) svg.removeChild(svg.firstChild);aminoList.forEach(it=>it.el.remove());aminoList.length=0;bonds.length=0;NAMES.forEach(addAA);});
+})();
+
+// ======= DNA & RNA 公共函数（碱基外移 16px；5' 与 3' 标签精确到顶点；水解 + 放水按钮） =======
+function makeNA(module){
+  const board = document.getElementById(module+'-board');
+  const svg   = document.getElementById(module+'-svg');
+  const pal   = document.getElementById(module+'-pal');
+  const isRNA = module==='rna';
+
+  const items=[], bonds=[], pairs=[];
+  const CARD_W=190, CARD_H=132;
+  const BASE_OFFSET = 16; // 碱基与糖距离：当前的四分之一
+
+  const v=(base,shape,sex)=>([{base,shape,sex,orient:'R',side:'right'},{base,shape,sex,orient:'L',side:'left'}]);
+  const variants = isRNA
+    ? [...v('A','circle','peg'), ...v('U','circle','socket'), ...v('C','tri','peg'), ...v('G','tri','socket')]
+    : [...v('A','circle','peg'), ...v('T','circle','socket'), ...v('C','tri','peg'), ...v('G','tri','socket')];
+
+  function makeNuc(cfg){
+    const el=document.createElement('div'); el.className='nuc orient-'+cfg.orient; el.dataset.base=cfg.base;
+    el.innerHTML = `
+      <div class="phos">P</div>
+      <div class="port p5" data-port="p5" title="5'-P"></div>
+      <div class="sugar ${isRNA?'rna':'dna'}" title="${isRNA?'核糖':'脱氧核糖'}"></div>
+      <div class="port oh" data-port="oh" title="3'-OH"></div>
+      <div class="lbl p">5'</div>
+      <div class="lbl s">3'</div>
+      <div class="base ${cfg.base}" data-shape="${cfg.shape}" data-sex="${cfg.sex}" data-side="${cfg.side}">${cfg.base}</div>
+      <svg class="intra"></svg>`;
+    return el;
+  }
+  variants.forEach(cfg=>{ const el=makeNuc(cfg); el.dataset.palette='1'; el.style.position='relative'; pal.appendChild(el); layoutNuc(el); });
+
+  function layoutNuc(el){
+    const orient = el.classList.contains('orient-L')?'L':'R';
+    const sugar  = el.querySelector('.sugar');
+    const phos   = el.querySelector('.phos');
+    const oh     = el.querySelector('.port.oh');
+    const p5     = el.querySelector('.port.p5');
+    const base   = el.querySelector('.base');
+    const intra  = el.querySelector('svg.intra');
+    const pLbl   = el.querySelector('.lbl.p');
+    const sLbl   = el.querySelector('.lbl.s');
+
+    const isPalette = el.dataset.palette==='1';
+    if(orient==='R'){ base.style.right=isPalette?'10px':(-BASE_OFFSET)+'px'; base.style.left='auto'; }
+    else            { base.style.left =isPalette?'10px':(-BASE_OFFSET)+'px'; base.style.right='auto'; }
+
+    const sx=sugar.offsetLeft, sy=sugar.offsetTop, sw=sugar.offsetWidth, sh=sugar.offsetHeight;
+    const v_tl={x:sx+0.00*sw, y:sy+0.36*sh};  // 左上 ~ C5'
+    const v_tr={x:sx+1.00*sw, y:sy+0.36*sh};  // 右上
+    const v_ll={x:sx+0.18*sw, y:sy+1.00*sh};  // 左下 ~ C3'
+    const v_lr={x:sx+0.82*sw, y:sy+1.00*sh};  // 右下 ~ C3'
+
+    // 3'-OH 端口：R → 左下；L → 右下
+    const ohPos = (orient==='R') ? v_ll : v_lr;
+    oh.style.left=(ohPos.x-7)+'px'; oh.style.top=(ohPos.y-7)+'px';
+
+    // 5'-P 端口：磷酸“圆顶”中心
+    const phx=phos.offsetLeft+phos.offsetWidth/2, phy=phos.offsetTop;
+    p5.style.left=(phx-8)+'px'; p5.style.top=(phy-8)+'px';
+
+    // —— 精确放置 5'/3' 标签 ——
+    const fiveVertex = (orient==='R') ? v_tl : v_tr;  // 与 P 相连的糖上角
+    pLbl.style.left = (fiveVertex.x - 8) + 'px';
+    pLbl.style.top  = (fiveVertex.y - 18) + 'px';
+    sLbl.style.left = (ohPos.x - 8) + 'px';
+    sLbl.style.top  = (ohPos.y + 4) + 'px';
+
+    // —— 单元内部连线（接到外边缘） ——
+    intra.setAttribute('viewBox',`0 0 ${CARD_W} ${CARD_H}`);
+    while(intra.firstChild) intra.removeChild(intra.firstChild);
+    // P–S：到糖上角；R 用左上；L 用右上
+    const pcx=phos.offsetLeft+phos.offsetWidth/2, pcy=phos.offsetTop+phos.offsetHeight/2, rc=phos.offsetWidth/2;
+    const STop=(orient==='R')?v_tl:v_tr; const dx1=STop.x-pcx, dy1=STop.y-pcy, len1=Math.hypot(dx1,dy1)||1;
+    const px1=pcx+dx1/len1*(rc-2), py1=pcy+dy1/len1*(rc-2);
+    intra.appendChild(mkLine(intra,px1,py1,STop.x,STop.y,'#f97316',2));
+    // S–OH：从对应下角到端口外缘
+    const ohc={x:oh.offsetLeft+8,y:oh.offsetTop+8}; const dx2=ohc.x-ohPos.x, dy2=ohc.y-ohPos.y, len2=Math.hypot(dx2,dy2)||1;
+    const ox2=ohc.x-dx2/len2*8, oy2=ohc.y-dy2/len2*8; intra.appendChild(mkLine(intra,ohPos.x,ohPos.y,ox2,oy2,'#0284c7',2));
+    // S–Base：从上角到碱基靠糖侧边缘
+    const br=base.getBoundingClientRect(), er=el.getBoundingClientRect(); const baseLeft=br.left-er.left, baseRight=br.right-er.left, baseMidY=br.top-er.top+br.height/2;
+    const baseEdgeX=(orient==='R')?baseLeft:baseRight; const sugarV=(orient==='R')?v_tr:v_tl;
+    intra.appendChild(mkLine(intra,sugarV.x,sugarV.y,baseEdgeX,baseMidY,'#475569',2));
+  }
+
+  function getPort(it, which){ const el=it.el.querySelector(which==='oh'?'.port.oh':'.port.p5'); const r=el.getBoundingClientRect(), wr=board.getBoundingClientRect(); return {x:r.left+8-wr.left, y:r.top+8-wr.top}; }
+  function baseAnchor(it){ const base=it.el.querySelector('.base'); const br=base.getBoundingClientRect(), wr=board.getBoundingClientRect(); const side=(it.side||base.dataset.side); return side==='right'?{x:br.right-wr.left,y:br.top+br.height/2-wr.top}:{x:br.left-wr.left,y:br.top+br.height/2-wr.top}; }
+  function near(a,b){ return Math.hypot(a.x-b.x,a.y-b.y) < 22; }
+  function edge(a,b,ra=10,rb=10){ const dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||1; return {x1:a.x+dx/d*ra,y1:a.y+dy/d*ra,x2:b.x-dx/d*rb,y2:b.y-dy/d*rb}; }
+
+  function svgLine(x1,y1,x2,y2,stroke,w){ return mkLine(svg,x1,y1,x2,y2,stroke,w); }
+  function svgRect(x,y,w,h,r,fill){ return mkRect(svg,x,y,w,h,r,fill); }
+  function svgText(x,y,str){ return mkText(svg,x,y,str,'#fff'); }
+
+  function refresh(){
+    bonds.forEach(b=>{
+      const L=items.find(x=>x.id===b.l), R=items.find(x=>x.id===b.r);
+      const A=getPort(L,'oh'), P=getPort(R,'p5'); const e=edge(A,P,10,10);
+      b.line.setAttribute('x1',e.x1); b.line.setAttribute('y1',e.y1); b.line.setAttribute('x2',e.x2); b.line.setAttribute('y2',e.y2);
+      const mx=(e.x1+e.x2)/2, my=(e.y1+e.y2)/2; b.rect.setAttribute('x',mx-70); b.rect.setAttribute('y',my-16); b.txt.setAttribute('x',mx); b.txt.setAttribute('y',my+6);
+    });
+    pairs.forEach(p=>{ const A=baseAnchor(items.find(x=>x.id===p.a)), B=baseAnchor(items.find(x=>x.id===p.b)); p.line.setAttribute('x1',A.x); p.line.setAttribute('y1',A.y); p.line.setAttribute('x2',B.x); p.line.setAttribute('y2',B.y); });
+  }
+
+  function phos(L,R){
+    L.rightFree=false; R.leftFree=false;
+    const A=getPort(L,'oh'), P=getPort(R,'p5'); const e=edge(A,P,10,10);
+    const line=svgLine(e.x1,e.y1,e.x2,e.y2,'#0ea5e9',5);
+    const rect=svgRect((e.x1+e.x2)/2-70,(e.y1+e.y2)/2-16,140,28,8,'#2563eb');
+    const txt=svgText((e.x1+e.x2)/2,(e.y1+e.y2)/2+6,"磷酸二酯键 5'→3'");
+    bonds.push({l:L.id,r:R.id,line,rect,txt});
+    // 生成一滴可拖动的水，拖近能解键
+    const w=spawnWater(board,((e.x1+e.x2)/2)-20,((e.y1+e.y2)/2)-50);
+    w.addEventListener('pointerup',()=>{
+      const mx=(e.x1+e.x2)/2,my=(e.y1+e.y2)/2; const wx=parseFloat(w.style.left)+20, wy=parseFloat(w.style.top)+20;
+      if(Math.hypot(wx-mx,wy-my)<40){ [line,rect,txt].forEach(e=>e.remove()); L.rightFree=true; R.leftFree=true; bonds.splice(bonds.findIndex(b=>b.l===L.id&&b.r===R.id),1); w.remove(); }
+    });
+  }
+
+  function tryPair(a,b){
+    const shape=a.shape===b.shape, sex=a.sex!==b.sex, face=(a.side==='right'&&b.side==='left')||(a.side==='left'&&b.side==='right');
+    const comp=(a.baseType==='A'&&(b.baseType=== (isRNA?'U':'T'))) || ((a.baseType===(isRNA?'U':'T'))&&b.baseType==='A') || (a.baseType==='C'&&b.baseType==='G') || (a.baseType==='G'&&b.baseType==='C');
+    if(!(shape&&sex&&face&&comp))return;
+    const A=baseAnchor(a), B=baseAnchor(b); const dist=Math.hypot(A.x-B.x,A.y-B.y);
+    if(dist<30 && !pairs.find(p=>(p.a===a.id&&p.b===b.id)||(p.a===b.id&&p.b===a.id))){
+      const line=svgLine(A.x,A.y,B.x,B.y,'#94a3b8',3); line.setAttribute('stroke-dasharray','6 6');
+      pairs.push({a:a.id,b:b.id,line}); line.addEventListener('dblclick',()=>{ const i=pairs.findIndex(p=>(p.a===a.id&&p.b===b.id)||(p.a===b.id&&p.b===a.id)); if(i>=0){ pairs[i].line.remove(); pairs.splice(i,1);} });
+    }
+  }
+
+  // 拖拽/克隆
+  let drag=null;
+  board.addEventListener('pointerdown',ev=>{
+    const card=ev.target.closest('#tab-'+module+' .nuc'); if(!card) return; const rect=board.getBoundingClientRect();
+    if(card.dataset.palette==='1'){
+      const clone=card.cloneNode(true); clone.dataset.palette='0'; clone.style.position='absolute';
+      clone.style.left=(ev.clientX-rect.left-CARD_W/2)+'px'; clone.style.top=(ev.clientY-rect.top-CARD_H/2)+'px';
+      board.appendChild(clone); layoutNuc(clone);
+      const baseEl=clone.querySelector('.base');
+      const meta={baseType:clone.dataset.base||baseEl.textContent.trim(), shape:baseEl.dataset.shape, sex:baseEl.dataset.sex, side:baseEl.dataset.side, orient:clone.classList.contains('orient-L')?'L':'R'};
+      const id='n'+Math.random().toString(36).slice(2); clone.dataset.id=id; items.push({id, el:clone, pos:{x:parseFloat(clone.style.left), y:parseFloat(clone.style.top)}, leftFree:true, rightFree:true, ...meta});
+      clone.setPointerCapture(ev.pointerId); drag={id:clone.dataset.id,ox:CARD_W/2,oy:CARD_H/2}; clone.classList.add('dragging');
+    }else{
+      const id=card.dataset.id; const it=items.find(a=>a.id===id); card.setPointerCapture(ev.pointerId); const r=board.getBoundingClientRect();
+      drag={id,ox:ev.clientX-r.left-it.pos.x,oy:ev.clientY-r.top-it.pos.y}; card.classList.add('dragging');
+    }
+  });
+  board.addEventListener('pointermove',ev=>{ if(!drag)return; const r=board.getBoundingClientRect(); const it=items.find(a=>a.id===drag.id); it.pos.x=ev.clientX-r.left-drag.ox; it.pos.y=ev.clientY-r.top-drag.oy; it.el.style.left=it.pos.x+'px'; it.el.style.top=it.pos.y+'px'; refresh(); });
+  board.addEventListener('pointerup',()=>{
+    if(!drag)return; const A=items.find(a=>a.id===drag.id); const el=A&&A.el; if(el) el.classList.remove('dragging');
+    for(const B of items){ if(B.id===A.id)continue;
+      if(near(getPort(A,'oh'),getPort(B,'p5'))&&A.rightFree&&B.leftFree&&!bonds.find(b=>b.l===A.id&&b.r===B.id)){ phos(A,B); break; }
+      if(near(getPort(B,'oh'),getPort(A,'p5'))&&B.rightFree&&A.leftFree&&!bonds.find(b=>b.l===B.id&&b.r===A.id)){ phos(B,A); break; }
+    }
+    for(const B of items){ if(B.id===A.id)continue; tryPair(A,B); tryPair(B,A); }
+    drag=null;
+  });
+
+  // 控件
+  document.getElementById(module+'-water').addEventListener('click',()=>spawnWater(board,40,220));
+  document.getElementById(module+'-reset').addEventListener('click',()=>{
+    while(svg.firstChild) svg.removeChild(svg.firstChild);
+    items.forEach(it=>it.el.remove()); items.length=0; bonds.length=0; pairs.forEach(p=>p.line.remove()); pairs.length=0;
+  });
+}
+
+// 启动 DNA / RNA
+makeNA('dna');
+makeNA('rna');
+
+// ========== 多糖模块（保留水解 + 放水按钮） ==========
+(function(){
+  const board=document.getElementById('poly-board'); const svg=document.getElementById('poly-svg'); const pal=document.getElementById('poly-pal');
+  const items=[], bonds=[]; const CARD_W=160, CARD_H=130;
+  const kinds=["葡萄糖","果糖","半乳糖","甘露糖","岩藻糖","鼠李糖","N-乙酰葡萄糖胺","N-乙酰半乳糖胺"];
+  function make(k){const el=document.createElement('div');el.className='mono';el.dataset.kind=k;el.innerHTML=`<div class="hex"></div><div class="port p-c1" data-port="c1"></div><div class="port p-c4" data-port="c4"></div><div class="port p-c6" data-port="c6"></div><div class="label lbl-c1">C1</div><div class="label lbl-c4">C4</div><div class="label lbl-c6">C6</div><div class="name">${k}</div>`;return el;}
+  kinds.forEach(k=>{const el=make(k);el.dataset.palette='1';el.style.position='relative';pal.appendChild(el);});
+
+  function portPos(el,sel){const p=el.querySelector(sel);const r=p.getBoundingClientRect(),wr=board.getBoundingClientRect();return{x:r.left+r.width/2-wr.left,y:r.top+r.height/2-wr.top};}
+  function edge(a,b,ra=10,rb=10){const dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||1;return{x1:a.x+dx/d*ra,y1:a.y+dy/d*ra,x2:b.x-dx/d*rb,y2:b.y-dy/d*rb};}
+  function near(a,b){return Math.hypot(a.x-b.x,a.y-b.y)<22;}
+
+  function react(A,aSite,B,bSite){
+    A.free[aSite]=false;B.free[bSite]=false;const PA=portPos(A.el,`.p-${aSite}`),PB=portPos(B.el,`.p-${bSite}`);
+    const e=edge(PA,PB,10,10);const line=mkLine(svg,e.x1,e.y1,e.x2,e.y2,'#0ea5e9',5);const rect=mkRect(svg,(e.x1+e.x2)/2-40,(e.y1+e.y2)/2-14,80,24,8,'#2563eb');const txt=mkText(svg,(e.x1+e.x2)/2,(e.y1+e.y2)/2+5,'糖苷键');
+    bonds.push({a:A.id,sa:aSite,b:B.id,sb:bSite,line,rect,txt});
+    const w=spawnWater(board,((e.x1+e.x2)/2)-20,((e.y1+e.y2)/2)-46);
+    w.addEventListener('pointerup',()=>{
+      const mx=(e.x1+e.x2)/2,my=(e.y1+e.y2)/2;const wx=parseFloat(w.style.left)+20,wy=parseFloat(w.style.top)+20;
+      if(Math.hypot(wx-mx,wy-my)<40){[line,rect,txt].forEach(e=>e.remove());A.free[aSite]=true;B.free[bSite]=true;bonds.splice(bonds.findIndex(x=>x.a===A.id&&x.sa===aSite&&x.b===B.id&&x.sb===bSite),1);w.remove();}
+    });
+  }
+
+  function refresh(){bonds.forEach(x=>{const A=items.find(i=>i.id===x.a),B=items.find(i=>i.id===x.b);const PA=portPos(A.el,`.p-${x.sa}`),PB=portPos(B.el,`.p-${x.sb}`);const e=edge(PA,PB,10,10);x.line.setAttribute('x1',e.x1);x.line.setAttribute('y1',e.y1);x.line.setAttribute('x2',e.x2);x.line.setAttribute('y2',e.y2);const mx=(e.x1+e.x2)/2,my=(e.y1+e.y2)/2;x.rect.setAttribute('x',mx-40);x.rect.setAttribute('y',my-14);x.txt.setAttribute('x',mx);x.txt.setAttribute('y',my+5);});}
+
+  let drag=null;board.addEventListener('pointerdown',ev=>{const card=ev.target.closest('#tab-poly .mono');if(!card)return;const rect=board.getBoundingClientRect();if(card.dataset.palette==='1'){const clone=card.cloneNode(true);clone.dataset.palette='0';clone.style.position='absolute';clone.style.left=(ev.clientX-rect.left-CARD_W/2)+'px';clone.style.top=(ev.clientY-rect.top-CARD_H/2)+'px';board.appendChild(clone);const id='m'+Math.random().toString(36).slice(2);clone.dataset.id=id;items.push({id,el:clone,pos:{x:parseFloat(clone.style.left),y:parseFloat(clone.style.top)},free:{c1:true,c4:true,c6:true}});clone.setPointerCapture(ev.pointerId);drag={id,ox:CARD_W/2,oy:CARD_H/2};clone.classList.add('dragging');}else{const id=card.dataset.id;const it=items.find(a=>a.id===id);card.setPointerCapture(ev.pointerId);const r=board.getBoundingClientRect();drag={id,ox:ev.clientX-r.left-it.pos.x,oy:ev.clientY-r.top-it.pos.y};card.classList.add('dragging');}});
+  board.addEventListener('pointermove',ev=>{if(!drag)return;const r=board.getBoundingClientRect();const it=items.find(a=>a.id===drag.id);it.pos.x=ev.clientX-r.left-drag.ox;it.pos.y=ev.clientY-r.top-drag.oy;it.el.style.left=it.pos.x+'px';it.el.style.top=it.pos.y+'px';refresh();});
+  board.addEventListener('pointerup',()=>{if(!drag)return;const A=items.find(a=>a.id===drag.id);const el=A&&A.el;if(el)el.classList.remove('dragging');for(const B of items){if(B.id===A.id)continue;const A1=portPos(A.el,'.p-c1'),A4=portPos(A.el,'.p-c4'),A6=portPos(A.el,'.p-c6');const B1=portPos(B.el,'.p-c1'),B4=portPos(B.el,'.p-c4'),B6=portPos(B.el,'.p-c6');function tryAB(aSite,bSite){if(!A.free[aSite]||!B.free[bSite])return false;const PA=aSite==='c1'?A1:(aSite==='c4'?A4:A6);const PB=bSite==='c1'?B1:(bSite==='c4'?B4:B6);const ok=(aSite==='c1'&&(bSite==='c4'||bSite==='c6'))||(bSite==='c1'&&(aSite==='c4'||aSite==='c6'));if(ok&&Math.hypot(PA.x-PB.x,PA.y-PB.y)<22&&!bonds.find(x=>x.a===A.id&&x.sa===aSite&&x.b===B.id&&x.sb===bSite)){react(A,aSite,B,bSite);return true;}return false;} if(tryAB('c1','c4')||tryAB('c1','c6')||tryAB('c4','c1')||tryAB('c6','c1'))break;} drag=null;});
+
+  // 控件
+  document.getElementById('poly-water').addEventListener('click',()=>spawnWater(board,40,220));
+  document.getElementById('poly-reset').addEventListener('click',()=>{while(svg.firstChild) svg.removeChild(svg.firstChild);items.forEach(it=>it.el.remove());items.length=0;bonds.length=0;});
+})();
+</script>
+  <!-- ==== 插入可移动的动画人物 ==== -->
+  <!-- 插入 Steve 动画：以 data URI 方式嵌入整个 GIF。使用固定定位放置在页面右下角。
+       如果需要替换图片，可在此处修改 data:image/gif;base64,<...> 部分。
+       请勿删除 #steve 元素，它用于键盘控制逻辑。 -->
+  <!-- 修改：使用外部文件路径而非嵌入式 Base64，以便运行时加载 GIF。请确保 minecraft-steve.gif 与此 HTML 位于同一目录 -->
+  <img id="steve" src="minecraft-steve.gif" alt="Steve">
+  <script>
+  // 控制动画人物左右移动并镜像翻转
+  (function(){
+    const steve = document.getElementById('steve');
+    // 初始水平位置：靠近右边缘
+    let x = window.innerWidth - steve.offsetWidth - 20;
+    steve.style.left = x + 'px';
+    let facingRight = true;
+    document.addEventListener('keydown', function(e) {
+      // 移动速度
+      const step = 10;
+      // 左箭头：向左移动，并镜像
+      if(e.key === 'ArrowLeft') {
+        x -= step;
+        if(x < 0) x = 0;
+        steve.style.left = x + 'px';
+        if(facingRight) {
+          steve.classList.add('mirrored');
+          facingRight = false;
+        }
+      }
+      // 右箭头：向右移动，并取消镜像
+      else if(e.key === 'ArrowRight') {
+        x += step;
+        const maxX = window.innerWidth - steve.offsetWidth;
+        if(x > maxX) x = maxX;
+        steve.style.left = x + 'px';
+        if(!facingRight) {
+          steve.classList.remove('mirrored');
+          facingRight = true;
+        }
+      }
+    });
+  })();
+  </script>
+</body>
+</html>
