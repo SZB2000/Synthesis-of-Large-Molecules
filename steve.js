@@ -15,12 +15,12 @@
   updatePos();
   // 键盘事件：左右移动 + 跳跃
   document.addEventListener('keydown', (e) => {
-    if(e.key === 'ArrowLeft'){
+    if(e.key === 'ArrowRight'){
       x = Math.max(0, x - step);
       // 向左时取消镜像（面朝左）
       steve.classList.remove('mirrored');
       updatePos();
-    } else if(e.key === 'ArrowRight'){
+    } else if(e.key === 'ArrowLeft'){
       x = Math.min(window.innerWidth - steve.offsetWidth, x + step);
       // 向右时镜像（面朝右）
       steve.classList.add('mirrored');
@@ -30,7 +30,7 @@
       jumping = true;
       let jumpHeight = 0;
       let ascending = true;
-      const maxJump = 120; // 跳跃高度
+      const maxJump = 180; // 跳跃高度
       const interval = setInterval(() => {
         if(ascending){
           jumpHeight += 6;
