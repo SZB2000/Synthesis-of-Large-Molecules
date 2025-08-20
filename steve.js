@@ -18,7 +18,7 @@
     if(e.key === 'ArrowRight'){
       x = Math.max(0, x - step);
       // 向左时取消镜像（面朝左）
-      steve.classList.remove('mirrored');
+      steve.classList.add('mirrored');
       updatePos();
     } else if(e.key === 'ArrowLeft'){
       x = Math.min(window.innerWidth - steve.offsetWidth, x + step);
@@ -30,7 +30,7 @@
       jumping = true;
       let jumpHeight = 0;
       let ascending = true;
-      const maxJump = 180; // 跳跃高度
+      const maxJump = 300; // 跳跃高度
       const interval = setInterval(() => {
         if(ascending){
           jumpHeight += 6;
